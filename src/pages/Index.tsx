@@ -1,196 +1,212 @@
 
-import React, { useState } from 'react';
-import Navigation from '../components/Navigation';
-import Map from '../components/Map';
-import RideBooking from '../components/RideBooking';
-import RideTracking from '../components/RideTracking';
-import RatingModal from '../components/RatingModal';
-import { Card, CardContent } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Menu, Search, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { MapPin, Car, Shield, Clock } from 'lucide-react';
-
-interface Location {
-  lat: number;
-  lng: number;
-  address?: string;
-}
-
-interface RideDetails {
-  pickup?: Location;
-  destination?: Location;
-  vehicleType: string;
-  estimate: {
-    distance: number;
-    duration: number;
-    price: number;
-  };
-}
+import { Input } from '@/components/ui/input';
+import PredictionCard from '@/components/PredictionCard';
+import BottomNavigation from '@/components/BottomNavigation';
+import SideMenu from '@/components/SideMenu';
+import NotificationIcon from '@/components/NotificationIcon';
+import { useOptimizedPosts } from '@/hooks/useOptimizedPosts';
+import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import PostSkeleton from '@/optimization/PostSkeleton';
+import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
-  const [pickup, setPickup] = useState<Location | undefined>();
-  const [destination, setDestination] = useState<Location | undefined>();
-  const [currentRide, setCurrentRide] = useState<RideDetails | null>(null);
-  const [rideStatus, setRideStatus] = useState<'idle' | 'searching' | 'driver_assigned' | 'driver_arriving' | 'in_progress' | 'completed'>('idle');
-  const [showRating, setShowRating] = useState(false);
-  const [rideId] = useState('RIDE123456');
+  const [sideMenuOpen, setSideMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [hiddenPostIds, setHiddenPostIds] = useState<string[]>([]);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const { posts, loading, initialLoading } = useOptimizedPosts();
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  // Données simulées du chauffeur
-  const mockDriver = {
-    id: 'DRV001',
-    name: 'Jean Dupont',
-    photo: 'https://ui-avatars.com/api/?name=Jean+Dupont&background=3b82f6&color=fff',
-    rating: 4.8,
-    vehicle: {
-      make: 'Renault',
-      model: 'Megane',
-      color: 'Blanche',
-      plate: 'AB-123-CD'
+  // Charger les posts masqués et utilisateurs bloqués
+  useEffect(() => {
+    const loadUserFilters = async () => {
+      if (!user) {
+        setHiddenPostIds([]);
+        setBlockedUserIds([]);
+        return;
+      }
+
+      try {
+        // Charger les posts masqués
+        const { data: hiddenPosts } = await supabase
+          .from('hidden_posts')
+          .select('post_id')
+          .eq('user_id', user.id);
+
+        // Charger les utilisateurs bloqués
+        const { data: blockedUsers } = await supabase
+          .from('blocked_users')
+          .select('blocked_id')
+          .eq('blocker_id', user.id);
+
+        setHiddenPostIds(hiddenPosts?.map(hp => hp.post_id) || []);
+        setBlockedUserIds(blockedUsers?.map(bu => bu.blocked_id) || []);
+      } catch (error) {
+        console.error('Error loading user filters:', error);
+      }
+    };
+
+    loadUserFilters();
+  }, [user]);
+
+  const handleOpenModal = (data: any) => {
+    // Modal handling logic if needed
+    console.log('Opening modal with data:', data);
+  };
+
+  const filteredPosts = posts.filter(post => {
+    // Filtrer par recherche
+    const matchesSearch = post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.match_teams?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.sport?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    // Filtrer les posts masqués
+    if (hiddenPostIds.includes(post.id)) return false;
+
+    // Filtrer les posts d'utilisateurs bloqués
+    if (blockedUserIds.includes(post.user_id)) return false;
+
+    return true;
+  });
+
+  const handleProfileClick = () => {
+    if (user) {
+      navigate('/profile');
+    } else {
+      navigate('/auth');
+    }
+  };
+
+  // Transform Post to PredictionCard format
+  const transformPostToPrediction = (post: any) => ({
+    id: post.id,
+    user: {
+      username: post.display_name || post.username || 'Utilisateur',
+      avatar: post.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + post.user_id,
+      badge: 'Nouveau',
+      badgeColor: 'bg-gray-500'
     },
-    phone: '+33 1 23 45 67 89'
-  };
-
-  const handleBookRide = (rideDetails: RideDetails) => {
-    setCurrentRide(rideDetails);
-    setRideStatus('searching');
-    
-    // Simulation du processus de réservation
-    setTimeout(() => setRideStatus('driver_assigned'), 3000);
-    setTimeout(() => setRideStatus('driver_arriving'), 5000);
-    setTimeout(() => setRideStatus('in_progress'), 15000);
-    setTimeout(() => {
-      setRideStatus('completed');
-      setShowRating(true);
-    }, 30000);
-  };
-
-  const handleCancelRide = () => {
-    setCurrentRide(null);
-    setRideStatus('idle');
-  };
-
-  const handleCompleteRide = () => {
-    setShowRating(true);
-  };
-
-  const handleRatingSubmit = (rating: number, comment: string) => {
-    console.log('Évaluation soumise:', { rating, comment });
-    setCurrentRide(null);
-    setRideStatus('idle');
-    setShowRating(false);
-  };
+    match: post.match_teams || 'Match non spécifié',
+    prediction: post.prediction_text || 'Pronostic non spécifié',
+    odds: post.odds?.toString() || '1.00',
+    confidence: post.confidence || 0,
+    analysis: post.analysis || post.content || '',
+    likes: post.likes || 0,
+    comments: post.comments || 0,
+    shares: post.shares || 0,
+    successRate: 75, // Default value, should come from user stats
+    timeAgo: new Date(post.created_at).toLocaleDateString('fr-FR'),
+    sport: post.sport || 'Sport',
+    image: post.image_url,
+    video: post.video_url,
+    is_liked: post.is_liked || false
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation />
-      
-      <div className="max-w-7xl mx-auto p-4">
-        {/* En-tête avec branding */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">
-            Bienvenue sur <span className="text-yellow-500">AUTOCOP</span>
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Votre transport sûr et fiable, disponible 24h/24
-          </p>
-        </div>
-
-        {/* Fonctionnalités principales */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="text-center p-6">
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <MapPin className="w-6 h-6 text-blue-500" />
+      {/* Header avec logo, notifications et photo de profil */}
+      <div className="bg-gradient-to-r from-green-500 to-green-600 border-b sticky top-0 z-40">
+        <div className="max-w-2xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSideMenuOpen(true)}
+                className="lg:hidden text-white hover:bg-white/20"
+              >
+                <Menu className="h-6 w-6" />
+              </Button>
+              <div className="flex items-center space-x-2">
+                <img 
+                  src="/lovable-uploads/35ad5651-d83e-4704-9851-61f3ad9fb0c3.png" 
+                  alt="PENDOR Logo" 
+                  className="w-8 h-8 rounded-full"
+                />
+                <h1 className="text-xl font-bold text-white">PENDOR</h1>
+              </div>
             </div>
-            <h3 className="font-semibold text-lg mb-2">Géolocalisation précise</h3>
-            <p className="text-gray-600 text-sm">Localisation en temps réel pour des trajets optimisés</p>
-          </Card>
-          
-          <Card className="text-center p-6">
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Shield className="w-6 h-6 text-green-500" />
-            </div>
-            <h3 className="font-semibold text-lg mb-2">Sécurité garantie</h3>
-            <p className="text-gray-600 text-sm">Chauffeurs vérifiés et véhicules contrôlés</p>
-          </Card>
-          
-          <Card className="text-center p-6">
-            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Clock className="w-6 h-6 text-yellow-500" />
-            </div>
-            <h3 className="font-semibold text-lg mb-2">Disponible 24h/24</h3>
-            <p className="text-gray-600 text-sm">Service disponible à toute heure</p>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Carte */}
-          <div>
-            <Map
-              pickup={pickup}
-              destination={destination}
-              onPickupChange={setPickup}
-              onDestinationChange={setDestination}
-              driverLocation={mockDriver ? { lat: 48.8566, lng: 2.3522 } : undefined}
-              showDriver={rideStatus === 'driver_arriving' || rideStatus === 'in_progress'}
-            />
-          </div>
-
-          {/* Interface de réservation ou de suivi */}
-          <div>
-            {rideStatus === 'idle' ? (
-              <RideBooking
-                pickup={pickup}
-                destination={destination}
-                onPickupChange={setPickup}
-                onDestinationChange={setDestination}
-                onBookRide={handleBookRide}
-              />
-            ) : (
-              <RideTracking
-                rideId={rideId}
-                status={rideStatus}
-                driver={rideStatus !== 'searching' ? mockDriver : undefined}
-                estimatedArrival={rideStatus === 'driver_arriving' ? 300 : undefined}
-                onCancelRide={handleCancelRide}
-                onCompleteRide={handleCompleteRide}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Informations supplémentaires */}
-        <div className="mt-12 text-center">
-          <h2 className="text-2xl font-bold text-slate-900 mb-4">
-            Pourquoi choisir AUTOCOP ?
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-blue-500">5min</div>
-              <div className="text-sm text-gray-600">Temps d'attente moyen</div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-green-500">4.9/5</div>
-              <div className="text-sm text-gray-600">Note moyenne</div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-yellow-500">24/7</div>
-              <div className="text-sm text-gray-600">Service disponible</div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-purple-500">100%</div>
-              <div className="text-sm text-gray-600">Sécurisé</div>
+            
+            <div className="flex items-center space-x-2">
+              {user && <NotificationIcon />}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleProfileClick}
+                className="text-white hover:bg-white/20"
+              >
+                {user ? (
+                  <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">
+                      {user.email?.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                ) : (
+                  <User className="h-6 w-6" />
+                )}
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Modal d'évaluation */}
-      <RatingModal
-        isOpen={showRating}
-        onClose={() => setShowRating(false)}
-        onSubmit={handleRatingSubmit}
-        targetName={mockDriver.name}
-        targetType="driver"
-      />
+      {/* Search Bar */}
+      <div className="bg-white border-b">
+        <div className="max-w-2xl mx-auto px-4 py-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Rechercher des pronostics, sports, équipes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-2xl mx-auto px-4 py-4 pb-20 space-y-4">
+        {initialLoading ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <PostSkeleton key={i} />
+            ))}
+          </div>
+        ) : filteredPosts.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500">
+              {searchQuery ? 'Aucun pronostic trouvé pour votre recherche.' : 'Aucun pronostic disponible.'}
+            </p>
+          </div>
+        ) : (
+          filteredPosts.map((post) => (
+            <PredictionCard 
+              key={post.id} 
+              prediction={transformPostToPrediction(post)} 
+              onOpenModal={handleOpenModal}
+            />
+          ))
+        )}
+
+        {loading && (
+          <div className="space-y-4">
+            {[...Array(2)].map((_, i) => (
+              <PostSkeleton key={i} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <BottomNavigation />
+      <SideMenu open={sideMenuOpen} onOpenChange={setSideMenuOpen} />
     </div>
   );
 };
