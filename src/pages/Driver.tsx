@@ -181,7 +181,7 @@ const Driver = () => {
                     <div>
                       <h4 className="font-semibold">Taux d'acceptation</h4>
                       <p className="text-sm text-gray-600">
-                        Maintenez un taux >90% pour plus de demandes
+                        Maintenez un taux &gt;90% pour plus de demandes
                       </p>
                     </div>
                   </div>

@@ -31,6 +31,7 @@ export interface ChannelMessage {
 export const useChannels = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(false);
+  const [userSubscriptions, setUserSubscriptions] = useState<string[]>([]);
   const { user } = useAuth();
 
   const fetchChannels = async () => {
@@ -42,6 +43,17 @@ export const useChannels = () => {
         .select('*');
 
       if (channelsError) throw channelsError;
+
+      // Fetch user subscriptions if user is logged in
+      if (user) {
+        const { data: subscriptions } = await supabase
+          .from('channel_subscriptions')
+          .select('channel_id')
+          .eq('user_id', user.id)
+          .eq('is_active', true);
+
+        setUserSubscriptions(subscriptions?.map(sub => sub.channel_id) || []);
+      }
 
       // Fetch creators info for each channel
       const channelsWithMetadata = await Promise.all(
@@ -143,11 +155,17 @@ export const useChannels = () => {
     fetchChannels();
   }, []);
 
+  const isSubscribed = (channelId: string) => {
+    return userSubscriptions.includes(channelId);
+  };
+
   return {
     channels,
     loading,
+    userSubscriptions,
     createChannel,
     subscribeToChannel,
+    isSubscribed,
     refetch: fetchChannels
   };
 };

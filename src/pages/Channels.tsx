@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 const Channels = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { channels, loading, createChannel: createChannelHook, subscribeToChannel } = useChannels();
+  const { channels, loading, createChannel: createChannelHook, subscribeToChannel, isSubscribed } = useChannels();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [showWarningDialog, setShowWarningDialog] = useState(false);
@@ -64,7 +64,11 @@ const Channels = () => {
   };
 
   const joinChannel = async (channel: Channel) => {
-    await subscribeToChannel(channel.id);
+    if (isSubscribed(channel.id)) {
+      setSelectedChannel(channel);
+    } else {
+      await subscribeToChannel(channel.id);
+    }
   };
 
   if (selectedChannel) {
@@ -255,7 +259,7 @@ const Channels = () => {
                       className="bg-green-500 hover:bg-green-600"
                     >
                       <MessageCircle className="w-4 h-4 mr-1" />
-                      Rejoindre
+                      {isSubscribed(channel.id) ? 'Entrer' : 'Rejoindre'}
                     </Button>
                   </div>
                 </CardContent>

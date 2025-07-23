@@ -1,18 +1,20 @@
 
-import { useState } from 'react';
-import { Send, ArrowLeft, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Send, ArrowLeft, Users, Crown, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useChannelMessages } from '@/hooks/useChannelMessages';
+import { supabase } from '@/integrations/supabase/client';
 
-interface ChannelMessage {
+interface ChannelInfo {
   id: string;
-  channel_id: string;
-  user_id: string;
-  content: string;
-  created_at: string;
-  username?: string;
-  avatar_url?: string;
+  name: string;
+  description: string;
+  creator_id: string;
+  creator_username?: string;
+  creator_badge?: string;
+  subscriber_count?: number;
 }
 
 interface ChannelChatProps {
@@ -22,19 +24,64 @@ interface ChannelChatProps {
 }
 
 const ChannelChat = ({ channelId, channelName, onBack }: ChannelChatProps) => {
-  const [messages] = useState<ChannelMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null);
 
-  const sendMessage = async () => {
+  // Fetch channel info first, then use it to initialize the messages hook
+  useEffect(() => {
+    const fetchChannelInfo = async () => {
+      try {
+        const { data: channelData, error: channelError } = await supabase
+          .from('channels')
+          .select('*')
+          .eq('id', channelId)
+          .single();
+
+        if (channelError) throw channelError;
+
+        // Get creator profile separately
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('username, badge')
+          .eq('user_id', channelData.creator_id)
+          .single();
+
+        const { count } = await supabase
+          .from('channel_subscriptions')
+          .select('*', { count: 'exact' })
+          .eq('channel_id', channelId);
+
+        setChannelInfo({
+          ...channelData,
+          creator_username: profileData?.username || 'Utilisateur',
+          creator_badge: profileData?.badge,
+          subscriber_count: count || 0
+        });
+      } catch (error) {
+        console.error('Error fetching channel info:', error);
+      }
+    };
+
+    fetchChannelInfo();
+  }, [channelId]);
+
+  const { messages, loading, isCreator, sendMessage: sendChannelMessage } = useChannelMessages(
+    channelId, 
+    channelInfo?.creator_id || ''
+  );
+
+  const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
-    // Mock implementation
-    console.log('Sending message:', newMessage);
-    setNewMessage('');
+    
+    const success = await sendChannelMessage(newMessage);
+    if (success) {
+      setNewMessage('');
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      sendMessage();
+      handleSendMessage();
     }
   };
 
@@ -60,11 +107,37 @@ const ChannelChat = ({ channelId, channelName, onBack }: ChannelChatProps) => {
           </Button>
           <div className="flex-1">
             <h1 className="text-lg font-semibold text-gray-900">{channelName}</h1>
-            <div className="flex items-center text-sm text-gray-500">
-              <Users className="w-3 h-3 mr-1" />
-              Canal VIP
+            <div className="flex items-center text-sm text-gray-500 space-x-3">
+              <div className="flex items-center">
+                <Lock className="w-3 h-3 mr-1" />
+                Canal VIP
+              </div>
+              {channelInfo && (
+                <div className="flex items-center">
+                  <Users className="w-3 h-3 mr-1" />
+                  {channelInfo.subscriber_count} abonnés
+                </div>
+              )}
             </div>
           </div>
+          {channelInfo && (
+            <div className="flex items-center space-x-2">
+              <img
+                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${channelInfo.creator_id}`}
+                alt="Creator"
+                className="w-8 h-8 rounded-full"
+              />
+              <div className="text-right">
+                <div className="flex items-center space-x-1">
+                  <span className="text-sm font-medium">{channelInfo.creator_username}</span>
+                  {channelInfo.creator_badge && (
+                    <Crown className="w-3 h-3 text-yellow-500" />
+                  )}
+                </div>
+                <span className="text-xs text-gray-500">Créateur</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -72,10 +145,17 @@ const ChannelChat = ({ channelId, channelName, onBack }: ChannelChatProps) => {
       <div className="flex-1">
         <ScrollArea className="h-full px-4 py-4">
           <div className="space-y-4">
-            {messages.length === 0 ? (
+            {loading ? (
               <div className="text-center py-12">
+                <p className="text-gray-500">Chargement des messages...</p>
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="text-center py-12">
+                <Lock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">Aucun message pour le moment</p>
-                <p className="text-sm text-gray-400 mt-1">Soyez le premier à écrire !</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  {isCreator ? 'Écrivez le premier message !' : 'Attendez que le créateur partage du contenu'}
+                </p>
               </div>
             ) : (
               messages.map((message) => (
@@ -90,13 +170,18 @@ const ChannelChat = ({ channelId, channelName, onBack }: ChannelChatProps) => {
                       <span className="font-medium text-sm text-gray-900">
                         {message.username}
                       </span>
+                      {message.user_id === channelInfo?.creator_id && (
+                        <Crown className="w-3 h-3 text-yellow-500" />
+                      )}
                       <span className="text-xs text-gray-500">
                         {formatTime(message.created_at)}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-700 break-words">
-                      {message.content}
-                    </p>
+                    <div className="bg-white rounded-lg p-3 shadow-sm border">
+                      <p className="text-sm text-gray-700 break-words">
+                        {message.content}
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))
@@ -107,22 +192,31 @@ const ChannelChat = ({ channelId, channelName, onBack }: ChannelChatProps) => {
 
       {/* Message Input */}
       <div className="bg-white border-t border-gray-200 p-4">
-        <div className="flex space-x-2">
-          <Input
-            placeholder="Tapez votre message..."
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="flex-1"
-          />
-          <Button
-            onClick={sendMessage}
-            disabled={!newMessage.trim()}
-            className="bg-green-500 hover:bg-green-600"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
-        </div>
+        {isCreator ? (
+          <div className="flex space-x-2">
+            <Input
+              placeholder="Partagez du contenu exclusif avec vos abonnés..."
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className="flex-1"
+            />
+            <Button
+              onClick={handleSendMessage}
+              disabled={!newMessage.trim()}
+              className="bg-green-500 hover:bg-green-600"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="text-center py-2">
+            <div className="flex items-center justify-center space-x-2 text-gray-500">
+              <Lock className="w-4 h-4" />
+              <span className="text-sm">Seul le créateur peut publier dans ce canal</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
