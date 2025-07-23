@@ -256,9 +256,9 @@ const Channels = () => {
                     <Button
                       size="sm"
                       onClick={() => joinChannel(channel)}
-                      className="bg-green-500 hover:bg-green-600"
+                      className="bg-green-500 hover:bg-green-600 px-3 py-1 h-8 text-xs"
                     >
-                      <MessageCircle className="w-4 h-4 mr-1" />
+                      <MessageCircle className="w-3 h-3 mr-1" />
                       {isSubscribed(channel.id) ? 'Entrer' : 'Rejoindre'}
                     </Button>
                   </div>
