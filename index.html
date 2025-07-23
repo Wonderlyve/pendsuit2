@@ -1,35 +1,53 @@
 
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AUTOCOP - Votre transport sûr et fiable</title>
-    <meta name="description" content="AUTOCOP - Service de transport avec chauffeur professionnel. Réservez votre course en quelques clics, suivi en temps réel, paiement sécurisé." />
-    <meta name="author" content="AUTOCOP" />
+    <title>pendor-social-scores</title>
+    <meta name="description" content="Plateforme sociale de pronostics sportifs" />
+    <meta name="author" content="Lovable" />
 
-    <meta property="og:title" content="AUTOCOP - Transport avec chauffeur" />
-    <meta property="og:description" content="Service de transport professionnel avec géolocalisation en temps réel" />
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Theme colors -->
+    <meta name="theme-color" content="#22c55e" />
+    <meta name="msapplication-TileColor" content="#22c55e" />
+    
+    <!-- Icons -->
+    <link rel="icon" href="/lovable-uploads/35ad5651-d83e-4704-9851-61f3ad9fb0c3.png" type="image/png">
+    <link rel="apple-touch-icon" href="/lovable-uploads/35ad5651-d83e-4704-9851-61f3ad9fb0c3.png" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Pendor Social Scores" />
+    <meta property="og:description" content="Plateforme sociale de pronostics sportifs" />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/favicon.ico" />
+    <meta property="og:image" content="/lovable-uploads/35ad5651-d83e-4704-9851-61f3ad9fb0c3.png" />
 
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="AUTOCOP" />
-    <meta name="twitter:description" content="Votre transport sûr et fiable" />
-    
-    <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#1e293b" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="AUTOCOP" />
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
-    <link rel="apple-touch-icon" href="/favicon.ico" />
+    <meta name="twitter:site" content="@pendor_app" />
+    <meta name="twitter:image" content="/lovable-uploads/35ad5651-d83e-4704-9851-61f3ad9fb0c3.png" />
   </head>
 
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered: ', registration);
+            })
+            .catch((registrationError) => {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+    </script>
   </body>
 </html>
