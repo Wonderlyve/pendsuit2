@@ -56,6 +56,9 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          media_filename: string | null
+          media_type: string | null
+          media_url: string | null
           user_id: string
         }
         Insert: {
@@ -63,6 +66,9 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           user_id: string
         }
         Update: {
@@ -70,6 +76,9 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           user_id?: string
         }
         Relationships: [
