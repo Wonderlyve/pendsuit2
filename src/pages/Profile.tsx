@@ -12,6 +12,8 @@ import BottomNavigation from '@/components/BottomNavigation';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useFollows } from '@/hooks/useFollows';
+import FollowsList from '@/components/FollowsList';
 
 interface UserPost {
   id: string;
@@ -30,14 +32,13 @@ interface UserPost {
 const Profile = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { followersCount, followingCount, fetchCounts } = useFollows(user?.id);
   const [profile, setProfile] = useState({
     username: '',
     display_name: '',
     avatar_url: '',
     bio: '',
-    badge: '',
-    followers_count: 0,
-    following_count: 0
+    badge: ''
   });
   const [userPosts, setUserPosts] = useState<UserPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +46,7 @@ const Profile = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newBio, setNewBio] = useState('');
+  const [showFollowsList, setShowFollowsList] = useState<'followers' | 'following' | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -70,9 +72,7 @@ const Profile = () => {
           display_name: data.display_name || '',
           avatar_url: data.avatar_url || '',
           bio: '',
-          badge: '',
-          followers_count: 0,
-          following_count: 0
+          badge: data.badge || ''
         });
       }
     } finally {
@@ -205,12 +205,12 @@ const Profile = () => {
               <div className="text-2xl font-bold text-white">{userPosts.length}</div>
               <div className="text-green-100 text-sm">Posts</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-white">{profile.followers_count}</div>
+            <div className="text-center cursor-pointer" onClick={() => setShowFollowsList('followers')}>
+              <div className="text-2xl font-bold text-white">{followersCount}</div>
               <div className="text-green-100 text-sm">Abonnés</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-white">{profile.following_count}</div>
+            <div className="text-center cursor-pointer" onClick={() => setShowFollowsList('following')}>
+              <div className="text-2xl font-bold text-white">{followingCount}</div>
               <div className="text-green-100 text-sm">Abonnements</div>
             </div>
           </div>
@@ -375,6 +375,16 @@ const Profile = () => {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Follows List Modal */}
+      {showFollowsList && (
+        <FollowsList
+          isOpen={!!showFollowsList}
+          onClose={() => setShowFollowsList(null)}
+          userId={user?.id || ''}
+          type={showFollowsList}
+        />
       )}
       
       <BottomNavigation />
