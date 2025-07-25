@@ -71,7 +71,7 @@ const Profile = () => {
           username: data.username || '',
           display_name: data.display_name || '',
           avatar_url: data.avatar_url || '',
-          bio: data.bio || '',
+          bio: (data as any).bio || '',
           badge: data.badge || ''
         });
       }
