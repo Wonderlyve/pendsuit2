@@ -322,6 +322,27 @@ export type Database = {
           },
         ]
       }
+      post_views: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       posts: {
         Row: {
           analysis: string | null
@@ -340,6 +361,7 @@ export type Database = {
           updated_at: string
           user_id: string
           video_url: string | null
+          views: number
         }
         Insert: {
           analysis?: string | null
@@ -358,6 +380,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           video_url?: string | null
+          views?: number
         }
         Update: {
           analysis?: string | null
@@ -376,6 +399,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           video_url?: string | null
+          views?: number
         }
         Relationships: [
           {
