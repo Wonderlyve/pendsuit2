@@ -45,7 +45,7 @@ const FollowButton = ({
           {isFollowing ? (
             <>
               <UserMinus className="w-4 h-4 mr-1" />
-              Se désabonner
+              Suivi
             </>
           ) : (
             <>
