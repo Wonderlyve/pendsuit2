@@ -23,6 +23,26 @@ export const useChannelMessages = (channelId: string, creatorId: string) => {
 
   const isCreator = user?.id === creatorId;
 
+  // Vérifier si l'utilisateur est abonné au canal
+  const [isSubscribed, setIsSubscribed] = useState(false);
+
+  const checkSubscription = async () => {
+    if (!user) return;
+    
+    try {
+      const { data } = await supabase
+        .from('channel_subscriptions')
+        .select('is_active')
+        .eq('channel_id', channelId)
+        .eq('user_id', user.id)
+        .single();
+      
+      setIsSubscribed(data?.is_active || isCreator);
+    } catch (error) {
+      setIsSubscribed(isCreator);
+    }
+  };
+
   const fetchMessages = async () => {
     setLoading(true);
     try {
@@ -62,8 +82,8 @@ export const useChannelMessages = (channelId: string, creatorId: string) => {
   };
 
   const sendMessage = async (content: string, mediaFiles?: File[]) => {
-    if (!user || !isCreator) {
-      toast.error('Seul le créateur du canal peut écrire des messages');
+    if (!user || (!isSubscribed && !isCreator)) {
+      toast.error('Vous devez être abonné au canal pour écrire des messages');
       return false;
     }
 
@@ -178,6 +198,60 @@ export const useChannelMessages = (channelId: string, creatorId: string) => {
     }
   };
 
+  const editMessage = async (messageId: string, newContent: string) => {
+    if (!user) {
+      toast.error('Vous devez être connecté pour modifier un message');
+      return false;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('channel_messages')
+        .update({ content: newContent.trim() })
+        .eq('id', messageId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      await fetchMessages(); // Refresh messages
+      toast.success('Message modifié avec succès');
+      return true;
+    } catch (error) {
+      console.error('Error editing message:', error);
+      toast.error('Erreur lors de la modification du message');
+      return false;
+    }
+  };
+
+  const deleteMessage = async (messageId: string) => {
+    if (!user) {
+      toast.error('Vous devez être connecté pour supprimer un message');
+      return false;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('channel_messages')
+        .delete()
+        .eq('id', messageId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      await fetchMessages(); // Refresh messages
+      toast.success('Message supprimé avec succès');
+      return true;
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      toast.error('Erreur lors de la suppression du message');
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    checkSubscription();
+  }, [user, channelId]);
+
   useEffect(() => {
     fetchMessages();
 
@@ -187,7 +261,53 @@ export const useChannelMessages = (channelId: string, creatorId: string) => {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
+          schema: 'public',
+          table: 'channel_messages',
+          filter: `channel_id=eq.${channelId}`
+        },
+        async (payload) => {
+          console.log('New message received:', payload);
+          
+          // Fetch the complete message with user profile data
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username, avatar_url')
+            .eq('user_id', payload.new.user_id)
+            .single();
+
+          const formattedMessage: ChannelMessage = {
+            id: payload.new.id,
+            channel_id: payload.new.channel_id,
+            user_id: payload.new.user_id,
+            content: payload.new.content,
+            created_at: payload.new.created_at,
+            username: profile?.username || 'Utilisateur',
+            avatar_url: profile?.avatar_url,
+            media_url: payload.new.media_url,
+            media_type: payload.new.media_type as 'image' | 'video' | 'audio' | 'file' | undefined,
+            media_filename: payload.new.media_filename
+          };
+          
+          setMessages(prev => [...prev, formattedMessage]);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'channel_messages',
+          filter: `channel_id=eq.${channelId}`
+        },
+        () => {
+          fetchMessages();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
           schema: 'public',
           table: 'channel_messages',
           filter: `channel_id=eq.${channelId}`
@@ -207,6 +327,9 @@ export const useChannelMessages = (channelId: string, creatorId: string) => {
     messages,
     loading,
     isCreator,
-    sendMessage
+    isSubscribed,
+    sendMessage,
+    editMessage,
+    deleteMessage
   };
 };
