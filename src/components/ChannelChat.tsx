@@ -1,14 +1,10 @@
 
 import { useState, useEffect } from 'react';
-import { Send, ArrowLeft, Users, Crown, Lock, Smile, Star } from 'lucide-react';
+import { Send, ArrowLeft, Users, Crown, Lock, Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChannelMessages } from '@/hooks/useChannelMessages';
-import { useVipPronos } from '@/hooks/useVipPronos';
-import { VipPronoModal } from '@/components/channel-chat/VipPronoModal';
-import { VipPronoCard } from '@/components/channel-chat/VipPronoCard';
-import MessageBubble from '@/components/channel-chat/MessageBubble';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ChannelInfo {
@@ -31,7 +27,6 @@ const ChannelChat = ({ channelId, channelName, onBack }: ChannelChatProps) => {
   const [newMessage, setNewMessage] = useState('');
   const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showVipPronoModal, setShowVipPronoModal] = useState(false);
 
   // Fetch channel info first, then use it to initialize the messages hook
   useEffect(() => {
@@ -76,8 +71,6 @@ const ChannelChat = ({ channelId, channelName, onBack }: ChannelChatProps) => {
     channelInfo?.creator_id || ''
   );
 
-  const { pronos, loading: pronosLoading, createVipProno } = useVipPronos(channelId);
-
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
     
@@ -105,19 +98,6 @@ const ChannelChat = ({ channelId, channelName, onBack }: ChannelChatProps) => {
   const addEmoji = (emoji: string) => {
     setNewMessage(prev => prev + emoji);
     setShowEmojiPicker(false);
-  };
-
-  const handleCreateVipProno = async (pronoData: any) => {
-    const success = await createVipProno({
-      ...pronoData,
-      channelId
-    });
-    
-    if (success) {
-      setShowVipPronoModal(false);
-    }
-    
-    return success;
   };
 
   return (
@@ -173,52 +153,46 @@ const ChannelChat = ({ channelId, channelName, onBack }: ChannelChatProps) => {
       <div className="flex-1">
         <ScrollArea className="h-full px-4 py-4">
           <div className="space-y-4">
-            {/* VIP Pronos Section */}
-            {!pronosLoading && pronos.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium text-yellow-700 flex items-center">
-                  <Star className="w-4 h-4 mr-1 fill-current" />
-                  Pronos VIP
-                </h3>
-                {pronos.map((prono) => (
-                  <VipPronoCard key={prono.id} prono={prono} />
-                ))}
-              </div>
-            )}
-
-            {/* Messages Section */}
             {loading ? (
               <div className="text-center py-12">
                 <p className="text-gray-500">Chargement des messages...</p>
               </div>
+            ) : messages.length === 0 ? (
+              <div className="text-center py-12">
+                <Lock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">Aucun message pour le moment</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  {isCreator ? 'Écrivez le premier message !' : 'Attendez que le créateur partage du contenu'}
+                </p>
+              </div>
             ) : (
-              <>
-                {messages.length === 0 && pronos.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Lock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">Aucun contenu pour le moment</p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      {isCreator ? 'Partagez du contenu exclusif avec vos abonnés !' : 'Attendez que le créateur partage du contenu'}
-                    </p>
+              messages.map((message) => (
+                <div key={message.id} className="flex items-start space-x-3">
+                  <img
+                    src={message.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${message.user_id}`}
+                    alt={message.username}
+                    className="w-8 h-8 rounded-full"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className="font-medium text-sm text-gray-900">
+                        {message.username}
+                      </span>
+                      {message.user_id === channelInfo?.creator_id && (
+                        <Crown className="w-3 h-3 text-yellow-500" />
+                      )}
+                      <span className="text-xs text-gray-500">
+                        {formatTime(message.created_at)}
+                      </span>
+                    </div>
+                    <div className="bg-white rounded-lg p-3 shadow-sm border">
+                      <p className="text-sm text-gray-700 break-words">
+                        {message.content}
+                      </p>
+                    </div>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {messages.length > 0 && (
-                      <>
-                        <h3 className="text-sm font-medium text-gray-700">Messages</h3>
-                        {messages.map((message) => (
-                          <MessageBubble
-                            key={message.id}
-                            message={message}
-                            isCreator={isCreator}
-                            creatorId={channelInfo?.creator_id}
-                          />
-                        ))}
-                      </>
-                    )}
-                  </div>
-                )}
-              </>
+                </div>
+              ))
             )}
           </div>
         </ScrollArea>
@@ -228,18 +202,6 @@ const ChannelChat = ({ channelId, channelName, onBack }: ChannelChatProps) => {
       <div className="bg-white border-t border-gray-200 p-4">
         {isCreator ? (
           <div className="space-y-2">
-            {/* VIP Prono Button */}
-            <div className="flex justify-center mb-2">
-              <Button
-                onClick={() => setShowVipPronoModal(true)}
-                variant="outline"
-                className="bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100"
-              >
-                <Star className="w-4 h-4 mr-2 fill-current" />
-                Créer un Prono VIP
-              </Button>
-            </div>
-            
             <div className="flex space-x-2">
               <div className="flex-1 relative">
                 <Input
@@ -291,13 +253,6 @@ const ChannelChat = ({ channelId, channelName, onBack }: ChannelChatProps) => {
           </div>
         )}
       </div>
-
-      {/* VIP Prono Modal */}
-      <VipPronoModal
-        isOpen={showVipPronoModal}
-        onClose={() => setShowVipPronoModal(false)}
-        onSubmit={handleCreateVipProno}
-      />
     </div>
   );
 };
