@@ -13,6 +13,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import PostSkeleton from '@/optimization/PostSkeleton';
 import { supabase } from '@/integrations/supabase/client';
+import { generateAllPosts } from '@/utils/generatePosts';
+import { toast } from 'sonner';
 
 const Index = () => {
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
@@ -111,6 +113,23 @@ const Index = () => {
       navigate('/profile');
     } else {
       navigate('/auth');
+    }
+  };
+
+  const handleGeneratePosts = async () => {
+    toast.loading('Génération des posts en cours...');
+    try {
+      const success = await generateAllPosts();
+      if (success) {
+        toast.success('50 posts générés avec succès!');
+        // Recharger la page pour voir les nouveaux posts
+        window.location.reload();
+      } else {
+        toast.error('Erreur lors de la génération des posts');
+      }
+    } catch (error) {
+      toast.error('Erreur lors de la génération des posts');
+      console.error(error);
     }
   };
 
@@ -262,6 +281,14 @@ const Index = () => {
                   >
                     <X className="h-3 w-3 mr-1" />
                     Effacer les filtres
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleGeneratePosts}
+                    className="text-xs ml-2"
+                  >
+                    Générer 50 Posts
                   </Button>
                 </div>
               </div>
